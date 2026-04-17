@@ -322,7 +322,10 @@ def main():
             except: pass
             return ""
 
-        styled = result_df.style.applymap(style_pct, subset=val_labels)
+        try:
+            styled = result_df.style.map(style_pct, subset=val_labels)
+        except AttributeError:
+            styled = result_df.style.applymap(style_pct, subset=val_labels)
         st.dataframe(styled, use_container_width=True, hide_index=True)
         suffix = " (2-way — decided only)" if two_way else " (incl. unsure in denominator)"
         st.caption(f"Percentages{suffix}. {len(df):,} total respondents.")
