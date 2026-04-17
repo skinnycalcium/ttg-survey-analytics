@@ -210,4 +210,212 @@ def main():
     if rows: st.markdown(crosstab_html(rows, q_vals, q, two_way), unsafe_allow_html=True)
     else: st.info("No data for this breakout.")
 
+    st.divider()
+    survey_title = st.session_state.get("survey_title", "TTG Survey")
+    if not st.session_state.get("survey_title"):
+        survey_title = st.text_input("Survey name (used in shareable file)", value="FL LGE 2026", key="survey_title_input")
+    html_bytes = generate_shareable_html(df, questions, {k: {"label": v["label"], "values": v["values"]} for k, v in demos.items()}, survey_title).encode("utf-8")
+    st.download_button(
+        label="Download shareable dashboard",
+        data=html_bytes,
+        file_name=f"TTG_{survey_title.replace(' ','_')}.html",
+        mime="text/html",
+        help="Send this HTML file to clients — they open it and see the dashboard instantly, no upload needed"
+    )
+
 if __name__=="__main__": main()
+
+
+def generate_shareable_html(df, questions, demos, survey_title):
+    data_json = df.to_json(orient="records")
+    questions_json = json.dumps(questions)
+    demos_json = json.dumps(demos)
+    title_json = json.dumps(survey_title)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTG — {survey_title}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+html,body{{font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:#f2f0ec;color:#111;height:100%;}}
+#app{{display:flex;height:100vh;overflow:hidden;}}
+.sidebar{{width:240px;flex-shrink:0;background:#0D1F2D;display:flex;flex-direction:column;overflow:hidden;}}
+.sb-head{{padding:1.25rem 1rem;border-bottom:1px solid rgba(255,255,255,0.08);}}
+.sb-title{{font-size:15px;font-weight:600;color:#fff;}}
+.sb-meta{{font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px;font-family:'IBM Plex Mono',monospace;}}
+.sb-survey{{font-size:11px;color:rgba(255,255,255,0.25);margin-top:2px;}}
+.sb-list{{flex:1;overflow-y:auto;padding:4px 0;}}
+.sb-list::-webkit-scrollbar{{width:3px;}}
+.sb-list::-webkit-scrollbar-thumb{{background:rgba(255,255,255,0.1);}}
+.qi{{padding:7px 14px 7px 12px;cursor:pointer;border-left:3px solid transparent;}}
+.qi:hover{{background:rgba(255,255,255,0.06);}}
+.qi.active{{background:rgba(255,255,255,0.1);border-left-color:#E8441A;}}
+.qi-col{{font-size:9px;font-family:'IBM Plex Mono',monospace;color:rgba(255,255,255,0.35);text-transform:uppercase;margin-bottom:2px;}}
+.qi.active .qi-col{{color:rgba(255,255,255,0.55);}}
+.qi-lbl{{font-size:12px;color:rgba(255,255,255,0.6);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}}
+.qi.active .qi-lbl{{color:#fff;}}
+.main{{flex:1;overflow-y:auto;background:#f2f0ec;}}
+.main-hdr{{background:#fff;border-bottom:1px solid #e8e5e0;padding:1rem 1.5rem;position:sticky;top:0;z-index:10;}}
+.hdr-col{{font-size:10px;font-family:'IBM Plex Mono',monospace;color:#999;margin-bottom:3px;}}
+.hdr-title{{font-size:20px;font-weight:600;color:#0D1F2D;line-height:1.3;}}
+.hdr-meta{{font-size:12px;color:#999;margin-top:2px;}}
+.content{{padding:1.25rem 1.5rem;}}
+.stat-grid{{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:1.25rem;}}
+.stat-card{{background:#fff;border-radius:10px;padding:12px 16px;min-width:110px;flex:1;max-width:180px;border:1px solid #e8e5e0;}}
+.sc-lbl{{font-size:11px;color:#888;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.sc-val{{font-size:26px;font-weight:600;line-height:1.1;}}
+.sc-sub{{font-size:10px;color:#bbb;margin-top:2px;font-family:'IBM Plex Mono',monospace;}}
+.divider{{border:none;border-top:1px solid #e8e5e0;margin:1.25rem 0;}}
+.controls{{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}}
+.ctrl-lbl{{font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.06em;}}
+.demo-btn{{padding:4px 10px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:transparent;color:#666;cursor:pointer;transition:all .1s;}}
+.demo-btn.active{{background:#0D1F2D;color:#fff;border-color:#0D1F2D;}}
+.toggle{{display:flex;align-items:center;gap:5px;font-size:12px;color:#666;cursor:pointer;margin-left:auto;}}
+.toggle input{{accent-color:#0D1F2D;cursor:pointer;}}
+.ct-wrap{{background:#fff;border:1px solid #e8e5e0;border-radius:10px;overflow:hidden;}}
+table{{width:100%;border-collapse:collapse;font-size:13px;}}
+thead tr{{background:#f5f3f0;}}
+thead th{{padding:9px 12px;text-align:right;font-size:10px;font-weight:600;color:#888;border-bottom:1px solid #e8e5e0;white-space:nowrap;}}
+thead th:first-child{{text-align:left;}}
+tbody tr{{border-bottom:1px solid #f0ede8;}}
+tbody tr:last-child{{border-bottom:none;}}
+tbody tr:hover{{background:#faf9f7;}}
+tbody td{{padding:9px 12px;}}
+tbody td:first-child{{font-weight:500;}}
+tbody td:not(:first-child){{text-align:right;}}
+.pct-cell{{display:flex;align-items:center;justify-content:flex-end;gap:5px;}}
+.bar{{height:6px;border-radius:3px;opacity:.7;flex-shrink:0;}}
+.pval{{font-family:'IBM Plex Mono',monospace;font-size:11px;min-width:40px;text-align:right;}}
+.ncell{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#aaa;text-align:right;}}
+.ucell{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#ccc;text-align:right;}}
+.ct-note{{font-size:11px;color:#bbb;margin-top:6px;padding-bottom:1rem;}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="sidebar">
+    <div class="sb-head">
+      <div class="sb-title">TTG Analytics</div>
+      <div class="sb-meta" id="sbMeta"></div>
+      <div class="sb-survey" id="sbSurvey"></div>
+    </div>
+    <div class="sb-list" id="sbList"></div>
+  </div>
+  <div class="main">
+    <div class="main-hdr">
+      <div class="hdr-col" id="hdrCol"></div>
+      <div class="hdr-title" id="hdrTitle">Select a question</div>
+      <div class="hdr-meta" id="hdrMeta"></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<script>
+const DATA = {json.dumps(json.loads(data_json))};
+const QUESTIONS = {questions_json};
+const DEMOS = {demos_json};
+const TITLE = {title_json};
+const COLORS = ["#C0392B","#2874A6","#7D6608","#1A7A4A","#6C3483","#D35400","#5D6D7E","#2E4057"];
+const SKIP = new Set(["98","99"," ",""]);
+let selQ = QUESTIONS[0]?.col || "";
+let selDemo = Object.keys(DEMOS)[0] || "";
+let twoWay = false;
+
+function getLabel(q, val) {{
+  return q.values?.[String(val)] || q.values?.[val] || "Option " + val;
+}}
+
+function getVals(col) {{
+  const s = new Set();
+  DATA.forEach(r => {{ const v = String(r[col]||"").trim(); if(v && !SKIP.has(v)) s.add(v); }});
+  return [...s].sort((a,b) => +a - +b || a.localeCompare(b));
+}}
+
+function overall(col) {{
+  const vals = getVals(col).filter(v => v!=="98"&&v!=="99");
+  const n = DATA.length;
+  const counts = {{}};
+  vals.forEach(v => counts[v] = DATA.filter(r => String(r[col]||"").trim()===v).length);
+  const unsure = DATA.filter(r => ["98","99"].includes(String(r[col]||"").trim())).length;
+  const pcts = {{}};
+  vals.forEach(v => pcts[v] = counts[v]/n*100);
+  return {{n, vals, counts, pcts, unsure, unsurePct: unsure/n*100}};
+}}
+
+function crosstab(col, byCol, demoVals) {{
+  const qVals = getVals(col).filter(v => v!=="98"&&v!=="99");
+  return Object.entries(demoVals).map(([dk, glabel]) => {{
+    const rows = DATA.filter(r => String(r[byCol]||"").trim()===dk);
+    const uns = rows.filter(r => ["98","99"].includes(String(r[col]||"").trim())).length;
+    const counts = {{}};
+    qVals.forEach(v => counts[v] = rows.filter(r => String(r[col]||"").trim()===v).length);
+    const tot = Object.values(counts).reduce((a,b)=>a+b,0)+uns;
+    const dec = Object.values(counts).reduce((a,b)=>a+b,0);
+    if(!tot) return null;
+    const denom = twoWay ? dec : tot;
+    const pcts = {{}};
+    qVals.forEach(v => pcts[v] = denom>0 ? counts[v]/denom*100 : 0);
+    return {{group:glabel, n:tot, pcts, unsPct:twoWay?null:uns/tot*100}};
+  }}).filter(Boolean);
+}}
+
+function renderSidebar() {{
+  document.getElementById("sbMeta").textContent = DATA.length.toLocaleString() + " respondents";
+  document.getElementById("sbSurvey").textContent = TITLE;
+  document.getElementById("sbList").innerHTML = QUESTIONS.map(q => `
+    <div class="qi${{q.col===selQ?" active":""}}" onclick="selQ='${{q.col}}';render()">
+      <div class="qi-col">${{q.col}}</div>
+      <div class="qi-lbl">${{q.label!==q.col?q.label:"—"}}</div>
+    </div>`).join("");
+}}
+
+function render() {{
+  renderSidebar();
+  const q = QUESTIONS.find(q => q.col===selQ); if(!q) return;
+  const ov = overall(q.col);
+  document.getElementById("hdrCol").textContent = q.col.toUpperCase();
+  document.getElementById("hdrTitle").textContent = q.label!==q.col ? q.label : "Question "+q.col;
+  document.getElementById("hdrMeta").textContent = "n="+ov.n.toLocaleString()+" total respondents";
+
+  const cards = ov.vals.map((v,i) => `
+    <div class="stat-card">
+      <div class="sc-lbl">${{getLabel(q,v)}}</div>
+      <div class="sc-val" style="color:${{COLORS[i%8]}}">${{ov.pcts[v].toFixed(1)}}%</div>
+      <div class="sc-sub">n=${{ov.counts[v].toLocaleString()}}</div>
+    </div>`).join("") + (ov.unsure>0 ? `
+    <div class="stat-card">
+      <div class="sc-lbl">Unsure / Refused</div>
+      <div class="sc-val" style="color:#bbb">${{ov.unsurePct.toFixed(1)}}%</div>
+      <div class="sc-sub">n=${{ov.unsure}}</div>
+    </div>` : "");
+
+  const demoTabs = Object.entries(DEMOS).map(([k,v]) =>
+    `<button class="demo-btn${{k===selDemo?" active":""}}" onclick="selDemo='${{k}}';render()">${{v.label}}</button>`).join("");
+
+  const ct = crosstab(q.col, selDemo, DEMOS[selDemo]?.values||{{}});
+  const qVals = ct.length ? Object.keys(ct[0].pcts) : [];
+
+  const thead = `<thead><tr><th style="text-align:left">Group</th><th>n</th>${{qVals.map((v,i)=>`<th style="color:${{COLORS[i%8]}}">${{getLabel(q,v)}}${{twoWay?" 2W":""}}</th>`).join("")}}${{!twoWay?"<th>Uns.</th>":""}}</tr></thead>`;
+  const tbody = "<tbody>"+ct.map(row => `<tr><td>${{row.group}}</td><td class="ncell">${{row.n}}</td>${{qVals.map((v,i)=>{{const p=row.pcts[v]||0;const bw=Math.max(2,Math.round(p*0.5));return`<td><div class="pct-cell"><div class="bar" style="width:${{bw}}px;background:${{COLORS[i%8]}}"></div><span class="pval">${{p.toFixed(1)}}%</span></div></td>`;}}  ).join("")}}${{!twoWay?`<td class="ucell">${{(row.unsPct||0).toFixed(1)}}%</td>`:""}}</tr>`).join("")+"</tbody>";
+
+  document.getElementById("content").innerHTML = `
+    <div class="stat-grid">${{cards}}</div>
+    <hr class="divider">
+    <div class="controls">
+      <span class="ctrl-lbl">Break by</span>
+      ${{demoTabs}}
+      <label class="toggle"><input type="checkbox" ${{twoWay?"checked":""}} onchange="twoWay=this.checked;render()"> 2-way</label>
+    </div>
+    ${{ct.length ? `<div class="ct-wrap"><table>${{thead}}${{tbody}}</table></div>
+    <div class="ct-note">Pcts (${{twoWay?"decided only":"unsure included in denominator"}})</div>` : '<p style="color:#bbb;font-size:13px">No data for this breakout.</p>'}}`;
+}}
+
+render();
+</script>
+</body>
+</html>"""
+    return html
